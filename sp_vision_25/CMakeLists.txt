@@ -14,6 +14,79 @@ find_package(yaml-cpp REQUIRED)
 find_package(nlohmann_json REQUIRED)
 set(OpenVINO_DIR "/opt/intel/openvino_2024.6.0/runtime/cmake/")
 find_package(OpenVINO REQUIRED)
+
+option(SP_VISION_AUTO_AIM_ONLY "Build standalone auto-aim tests without ROS targets" OFF)
+if(SP_VISION_AUTO_AIM_ONLY)
+    include_directories(${EIGEN3_INCLUDE_DIR})
+    include_directories(${OpenCV_INCLUDE_DIRS})
+    include_directories(${PROJECT_SOURCE_DIR})
+
+    add_subdirectory(tools)
+    add_subdirectory(io)
+    add_subdirectory(tasks/auto_aim)
+
+    add_executable(auto_aim_test tests/auto_aim_test.cpp)
+    target_link_libraries(auto_aim_test ${OpenCV_LIBS} fmt::fmt yaml-cpp tools io auto_aim)
+    add_executable(auto_aim_camera_test tests/auto_aim_camera_test.cpp)
+    target_link_libraries(auto_aim_camera_test ${OpenCV_LIBS} fmt::fmt yaml-cpp tools io auto_aim)
+    add_executable(auto_aim_test_all tests/auto_aim_test_all.cpp)
+    target_link_libraries(auto_aim_test_all ${OpenCV_LIBS} fmt::fmt yaml-cpp tools io auto_aim)
+
+    option(SP_VISION_BUILD_ROS_AUTO_AIM "Build the single-camera ROS auto-aim executable" OFF)
+    if(SP_VISION_BUILD_ROS_AUTO_AIM)
+        find_package(ament_cmake REQUIRED)
+        find_package(rclcpp REQUIRED)
+        find_package(sensor_msgs REQUIRED)
+        find_package(std_msgs REQUIRED)
+        find_package(geometry_msgs REQUIRED)
+        find_package(example_interfaces REQUIRED)
+        find_package(tf2 REQUIRED)
+        find_package(tf2_geometry_msgs REQUIRED)
+        find_package(tf2_ros REQUIRED)
+        find_package(pb_rm_interfaces REQUIRED)
+
+        add_executable(auto_aim_test_all_ros
+            tests/auto_aim_test_all_ros.cpp
+            io/ros2/gimbal_ros.cpp
+        )
+        target_link_libraries(auto_aim_test_all_ros
+            ${OpenCV_LIBS} fmt::fmt yaml-cpp tools io auto_aim
+            rclcpp::rclcpp tf2::tf2 tf2_geometry_msgs::tf2_geometry_msgs
+            tf2_ros::tf2_ros pb_rm_interfaces::pb_rm_interfaces__rosidl_typesupport_cpp
+        )
+        ament_target_dependencies(auto_aim_test_all_ros
+            rclcpp sensor_msgs std_msgs geometry_msgs example_interfaces
+            tf2 tf2_geometry_msgs tf2_ros pb_rm_interfaces
+        )
+
+        add_executable(capture_gimbal
+            calibration/capture_gimbal.cpp
+            io/ros2/gimbal_ros.cpp
+        )
+        target_link_libraries(capture_gimbal
+            ${OpenCV_LIBS} fmt::fmt yaml-cpp tools io
+            rclcpp::rclcpp tf2::tf2 tf2_geometry_msgs::tf2_geometry_msgs
+            tf2_ros::tf2_ros pb_rm_interfaces::pb_rm_interfaces__rosidl_typesupport_cpp
+        )
+        ament_target_dependencies(capture_gimbal
+            rclcpp sensor_msgs std_msgs geometry_msgs example_interfaces
+            tf2 tf2_geometry_msgs tf2_ros pb_rm_interfaces
+        )
+
+        add_executable(capture calibration/capture.cpp)
+        target_link_libraries(capture ${OpenCV_LIBS} fmt::fmt yaml-cpp tools io)
+
+        add_executable(calibrate_camera calibration/calibrate_camera.cpp)
+        target_link_libraries(calibrate_camera ${OpenCV_LIBS} fmt::fmt yaml-cpp tools)
+
+        add_executable(calibrate_handeye calibration/calibrate_handeye.cpp)
+        target_link_libraries(calibrate_handeye
+            ${OpenCV_LIBS} fmt::fmt yaml-cpp tools
+        )
+    endif()
+    return()
+endif()
+
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)      # 处理 /serial/imu

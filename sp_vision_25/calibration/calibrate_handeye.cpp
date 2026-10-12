@@ -14,6 +14,7 @@
 const std::string keys =
   "{help h usage ? |                          | 输出命令行参数说明}"
   "{config-path c  | configs/calibration.yaml | yaml配置文件路径 }"
+  "{show-images    | true                     | 是否逐张显示角点 }"
   "{@input-folder  | assets/img_with_q        | 输入文件夹路径   }";
 
 // 生成棋盘格角点的3D坐标
@@ -136,7 +137,7 @@ void load(const std::string & input_folder, const std::string & config_path,
           std::vector<double> & R_gimbal2imubody_data,
           std::vector<cv::Mat> & R_gimbal2world_list,
           std::vector<cv::Mat> & t_gimbal2world_list,
-          std::vector<cv::Mat> & rvecs, std::vector<cv::Mat> & tvecs)
+          std::vector<cv::Mat> & rvecs, std::vector<cv::Mat> & tvecs, bool show_images)
 {
   YAML::Node yaml = YAML::LoadFile(config_path);
   auto pattern_cols = yaml["pattern_cols"].as<int>();
@@ -213,11 +214,12 @@ void load(const std::string & input_folder, const std::string & config_path,
     cv::TermCriteria criteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, 0.001);
     cv::cornerSubPix(gray, corners_2d, cv::Size(11, 11), cv::Size(-1, -1), criteria);
 
-    // 可视化检测结果
-    cv::Mat img_display = img.clone();
-    cv::drawChessboardCorners(img_display, pattern_size, corners_2d, found);
-    cv::imshow("Chessboard Corners", img_display);
-    cv::waitKey(100);  // 短暂显示
+    if (show_images) {
+      cv::Mat img_display = img.clone();
+      cv::drawChessboardCorners(img_display, pattern_size, corners_2d, found);
+      cv::imshow("Chessboard Corners", img_display);
+      cv::waitKey(100);
+    }
 
     std::vector<cv::Point3f> corners_3d = chessboard_corners_3d(pattern_size, square_size);
 
@@ -251,7 +253,7 @@ void load(const std::string & input_folder, const std::string & config_path,
     success_count++;
   }
 
-  cv::destroyAllWindows();  // 关闭所有OpenCV窗口
+  if (show_images) cv::destroyAllWindows();
 
   fmt::print("\n========== 数据加载完成 ==========\n");
   fmt::print("总图像数：{}\n", total_count);
@@ -290,13 +292,14 @@ int main(int argc, char * argv[])
   }
   auto input_folder = cli.get<std::string>(0);
   auto config_path = cli.get<std::string>("config-path");
+  auto show_images = cli.get<bool>("show-images");
 
   std::vector<double> R_gimbal2imubody_data;
   std::vector<cv::Mat> R_gimbal2world_list, t_gimbal2world_list;
   std::vector<cv::Mat> rvecs, tvecs;
 
   load(input_folder, config_path, R_gimbal2imubody_data,
-       R_gimbal2world_list, t_gimbal2world_list, rvecs, tvecs);
+       R_gimbal2world_list, t_gimbal2world_list, rvecs, tvecs, show_images);
 
   if (R_gimbal2world_list.size() < 5) {
     fmt::print("❌ 有效数据不足，无法进行手眼标定。\n");

@@ -9,9 +9,6 @@
 
 namespace auto_aim
 {
-namespace{
-  constexpr int OUTPOST_BOTTOM_ARMOR_ID = 2;
-}
 Tracker::Tracker(const std::string & config_path, Solver & solver)
 : solver_{solver},
   detect_count_(0),

@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
 
   int frame_count = 0;
   double last_t = -1;
-  io::Command last_command;
+  io::Command last_command{false, false, 0, 0};
 
   // 固定四元数（因为没有IMU）
   Eigen::Quaterniond fixed_quaternion(1, 0, 0, 0);
@@ -61,7 +61,8 @@ int main(int argc, char *argv[])
     auto command = aimer.aim(targets, t, 27, false);
 
     // 简单射击逻辑
-    if (!targets.empty() && aimer.debug_aim_point.valid &&
+    if (last_command.control && command.control && !targets.empty() &&
+        aimer.debug_aim_point.valid &&
         std::abs(command.yaw - last_command.yaw) * 57.3 < 2) {
       command.shoot = true;
     }
@@ -69,6 +70,13 @@ int main(int argc, char *argv[])
 
     // 绘制检测结果
     for (const auto& armor : armors) {
+      // points 是原图坐标，ROI 模式下也可直接用于绘制。
+      if (armor.points.size() == 4) {
+        for (size_t i = 0; i < armor.points.size(); ++i) {
+          cv::line(frame, armor.points[i], armor.points[(i + 1) % armor.points.size()],
+                   cv::Scalar(0, 255, 0), 2);
+        }
+      }
       cv::circle(frame,
         cv::Point2f(armor.center_norm.x * frame.cols,
                     armor.center_norm.y * frame.rows),
@@ -85,7 +93,8 @@ int main(int argc, char *argv[])
     // 显示命令
     tools::draw_text(
       frame,
-      fmt::format("Yaw {:.2f}° | Pitch {:.2f}° | Shoot: {}",
+      fmt::format("Tracker: {} | Targets: {} | Control: {} | Yaw {:.2f}° | Pitch {:.2f}° | Shoot: {}",
+        tracker.state(), targets.size(), command.control ? "YES" : "NO",
         command.yaw * 57.3, command.pitch * 57.3,
         command.shoot ? "YES" : "NO"),
       {10, 30}, {0, 255, 0});

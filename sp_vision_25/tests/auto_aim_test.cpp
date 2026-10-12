@@ -20,6 +20,7 @@ const std::string keys =
   "{config-path c  | configs/demo.yaml | yaml配置文件的路径}"
   "{start-index s  | 0                 | 视频起始帧下标    }"
   "{end-index e    | 0                 | 视频结束帧下标    }"
+  "{headless       |                   | 不显示视频窗口      }"
   "{@input-path    | assets/demo/demo  | avi和txt文件的路径}";
 
 int main(int argc, char * argv[])
@@ -34,6 +35,7 @@ int main(int argc, char * argv[])
   auto config_path = cli.get<std::string>("config-path");
   auto start_index = cli.get<int>("start-index");
   auto end_index = cli.get<int>("end-index");
+  auto headless = cli.has("headless");
 
   tools::Plotter plotter;
   tools::Exiter exiter;
@@ -42,8 +44,12 @@ int main(int argc, char * argv[])
   auto text_path = fmt::format("{}.txt", input_path);
   cv::VideoCapture video(video_path);
   std::ifstream text(text_path);
+  if (!video.isOpened() || !text.is_open()) {
+    fmt::print(stderr, "Cannot open demo inputs: {} and {}\n", video_path, text_path);
+    return 1;
+  }
 
-  auto_aim::YOLO yolo(config_path);
+  auto_aim::YOLO yolo(config_path, !headless);
   auto_aim::Solver solver(config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Aimer aimer(config_path);
@@ -58,7 +64,10 @@ int main(int argc, char * argv[])
   video.set(cv::CAP_PROP_POS_FRAMES, start_index);
   for (int i = 0; i < start_index; i++) {
     double t, w, x, y, z;
-    text >> t >> w >> x >> y >> z;
+    if (!(text >> t >> w >> x >> y >> z)) {
+      fmt::print(stderr, "No pose data for start frame {}\n", i);
+      return 1;
+    }
   }
 
   for (int frame_count = start_index; !exiter.exit(); frame_count++) {
@@ -68,7 +77,10 @@ int main(int argc, char * argv[])
     if (img.empty()) break;
 
     double t, w, x, y, z;
-    text >> t >> w >> x >> y >> z;
+    if (!(text >> t >> w >> x >> y >> z)) {
+      tools::logger()->warn("No pose data for frame {}, stopping", frame_count);
+      break;
+    }
     auto timestamp = t0 + std::chrono::microseconds(int(t * 1e6));
 
     /// 自瞄核心逻辑
@@ -194,10 +206,12 @@ int main(int argc, char * argv[])
 
     plotter.plot(data);
 
-    cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
-    cv::imshow("reprojection", img);
-    auto key = cv::waitKey(30);
-    if (key == 'q') break;
+    if (!headless) {
+      cv::resize(img, img, {}, 0.5, 0.5);  // 显示时缩小图片尺寸
+      cv::imshow("reprojection", img);
+      auto key = cv::waitKey(30);
+      if (key == 'q') break;
+    }
   }
 
   return 0;

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=SP Vision Single Camera ROS
+Comment=Start the lower-controller serial link and single-camera auto aim
+Path=/home/wheeltec/Desktop/lf_sentry/lf_sentry/sp_vision_25
+Exec=/home/wheeltec/Desktop/lf_sentry/lf_sentry/sp_vision_25/autostart.sh
+Terminal=false
+X-GNOME-Autostart-enabled=true

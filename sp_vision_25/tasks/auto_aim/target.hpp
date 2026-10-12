@@ -13,6 +13,7 @@
 
 namespace auto_aim
 {
+inline constexpr int OUTPOST_BOTTOM_ARMOR_ID = 2;
 
 class Target
 {

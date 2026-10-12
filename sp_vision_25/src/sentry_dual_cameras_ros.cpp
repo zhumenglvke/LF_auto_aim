@@ -7,6 +7,7 @@
 #include <thread>
 #include <mutex>
 #include <atomic>
+#include <yaml-cpp/yaml.h>
 
 #include "io/camera.hpp"
 #include "io/ros2/gimbal_ros.hpp"
@@ -24,6 +25,7 @@
 #include "tools/math_tools.hpp"
 #include "tools/plotter.hpp"
 #include "tools/recorder.hpp"
+#include "tools/viewer_tool.hpp"
 
 using namespace std::chrono;
 using namespace std::chrono_literals;
@@ -94,6 +96,11 @@ int main(int argc, char * argv[])
   }
 
   auto config_path = cli.get<std::string>(0);
+  const bool use_windows = YAML::LoadFile(config_path)["use_windows"].as<bool>(false);
+  std::unique_ptr<tools::ViewerTool> viewer;
+  if (use_windows) {
+    viewer = std::make_unique<tools::ViewerTool>("Dual Camera View", 0.5);
+  }
   rclcpp::init(argc, argv);
 
   tools::Exiter exiter;
@@ -293,6 +300,12 @@ int main(int argc, char * argv[])
       // 【优化】使用 \r 实现原位覆盖刷新，不再刷屏阻塞终端
       fmt::print("\r[Vision] FPS: {:.1f}", fps);
       fflush(stdout); 
+    }
+
+    if (viewer) {
+      std::chrono::steady_clock::time_point back_frame_time;
+      back_stream.get_latest(back_img, back_frame_time);
+      if (!viewer->update({front_img, back_img})) break;
     }
   }
 

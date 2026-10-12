@@ -94,6 +94,7 @@
 #include <filesystem>
 #include <fstream>
 #include <opencv2/opencv.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include "io/camera.hpp"
 #include "io/ros2/gimbal_ros.hpp"
@@ -123,9 +124,10 @@ void capture_loop(
   cv::Mat img;
   std::chrono::steady_clock::time_point timestamp;
 
-  // 棋盘格参数 (6×8 30mm)
-  const cv::Size patternSize(7, 10); // 内部角点数 (列数-1, 行数-1)
-  const float squareSize = 0.015f;   // 30mm方格尺寸
+  const auto config = YAML::LoadFile(config_path);
+  const cv::Size patternSize(
+    config["pattern_cols"].as<int>() - 1, config["pattern_rows"].as<int>() - 1);
+  const float squareSize = config["square_size_mm"].as<float>() / 1000.0f;
   const cv::Scalar borderColor(0, 255, 0); // 绿色边框 (BGR格式)
   const int borderThickness = 2;
 
@@ -224,7 +226,11 @@ int main(int argc, char * argv[])
 
   std::filesystem::create_directory(output_folder);
 
-  tools::logger()->info("棋盘格尺寸为6列8行 (内部角点5×7)，30mm方格");
+  const auto config = YAML::LoadFile(config_path);
+  tools::logger()->info(
+    "棋盘格内部角点 {}×{}，方格边长 {} mm",
+    config["pattern_cols"].as<int>() - 1, config["pattern_rows"].as<int>() - 1,
+    config["square_size_mm"].as<float>());
   tools::logger()->info("开始采集标定数据...");
   
   capture_loop(config_path, output_folder);

@@ -86,28 +86,18 @@ IMU型号：使用C板内置BMI088作为IMU\
     ./build/auto_aim_test
     ```
 
-4. 注册自启：
-    1. 确保已安装`screen`:
-        ```
-        sudo apt install screen
-        ```
-    2. 创建`.desktop`文件:
-        ```
-        mkdir ~/.config/autostart/
-        touch ~/.config/autostart/sp_vision.desktop
-        ```
-    3. 在该文件中写入:
-        ```
-        [Desktop Entry]
-        Type=Application
-        Exec=/home/rm/Desktop/sp_vision_25/autostart.sh
-        Name=sp_vision
-        ```
-        注: [Exec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html)必须为绝对路径.
-    4. 确保`autostart.sh`有可执行权限:
-        ```
-        chmod +x autostart.sh
-        ```
+4. 注册单摄 ROS 自启（图形登录后启动）：
+    ```bash
+    ./autostart.sh --check
+    mkdir -p ~/.config/autostart
+    install -m 644 autostart/sp_vision_single_camera_ros.desktop ~/.config/autostart/
+    ```
+    `--check` 需在图形会话中运行，并要求下位机串口已连接、当前没有被其他进程占用；显示检测使用 `xdpyinfo`（`x11-utils` 包）。
+    `autostart.sh` 会先加载 ROS Humble 和 `build/ros_install`，启动
+    `standard_robot_pp_ros2_node`、`gimbal_manager_node`，收到 `/serial/imu`
+    数据后再启动 `build/auto_aim_test_all_ros configs/demo.yaml`。
+    日志保存在 `~/.local/state/sp_vision_single_camera/`。
+    若工程目录改变，需要同步更新 `.desktop` 文件中的 `Path` 和 `Exec`。
 
 5. USB2CAN设置（可选）
     1. 创建`.rules`文件:

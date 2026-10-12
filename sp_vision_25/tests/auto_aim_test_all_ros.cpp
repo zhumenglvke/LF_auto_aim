@@ -1,6 +1,8 @@
 #include <chrono>
 
+#include <fmt/core.h>
 #include <opencv2/opencv.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include "io/camera.hpp"
 #include "io/ros2/gimbal_ros.hpp"
@@ -10,6 +12,7 @@
 #include "tasks/auto_aim/tracker.hpp"
 #include "tasks/auto_aim/yolo.hpp"
 #include "tools/exiter.hpp"
+#include "tools/img_tools.hpp"
 #include "tools/logger.hpp"
 #include "tools/math_tools.hpp"
 
@@ -27,6 +30,10 @@ int main(int argc, char * argv[])
     return 0;
   }
   auto config_path = cli.get<std::string>(0);
+  auto config = YAML::LoadFile(config_path);
+  const auto solver_config_path = config["calibration_path"]
+    ? config["calibration_path"].as<std::string>()
+    : config_path;
 
   tools::Exiter exiter;
 
@@ -34,7 +41,7 @@ int main(int argc, char * argv[])
 
   io::Camera camera(config_path);
   auto_aim::YOLO yolo(config_path);
-  auto_aim::Solver solver(config_path);
+  auto_aim::Solver solver(solver_config_path);
   auto_aim::Tracker tracker(config_path, solver);
   auto_aim::Aimer aimer(config_path);
   auto_aim::Shooter shooter(config_path);
@@ -122,8 +129,53 @@ int main(int argc, char * argv[])
 
       tools::logger()->info("FPS: {:.1f}, Tracker State: {}", fps, tracker.state());
     }
+
+    // 绿色：识别结果；青色：跟踪器预测；红色/蓝色：有效/无效瞄准点。
+    for (const auto & armor : armors) {
+      if (armor.points.size() == 4) {
+        tools::draw_points(img, armor.points, {0, 255, 0});
+      }
+      cv::circle(img, armor.center, 4, {0, 255, 0}, -1);
+      tools::draw_text(
+        img, fmt::format("{} {:.2f}", auto_aim::ARMOR_NAMES[armor.name], armor.confidence),
+        {static_cast<int>(armor.center.x), static_cast<int>(armor.center.y) - 12},
+        {0, 255, 0}, 0.6, 2);
+    }
+
+    if (!targets.empty()) {
+      const auto & target = targets.front();
+      for (const auto & xyza : target.armor_xyza_list()) {
+        tools::draw_points(
+          img, solver.reproject_armor(xyza.head<3>(), xyza[3], target.armor_type, target.name),
+          {255, 255, 0});
+      }
+      const auto & aim_point = aimer.debug_aim_point;
+      tools::draw_points(
+        img,
+        solver.reproject_armor(
+          aim_point.xyza.head<3>(), aim_point.xyza[3], target.armor_type, target.name),
+        aim_point.valid ? cv::Scalar(0, 0, 255) : cv::Scalar(255, 0, 0));
+    }
+
+    tools::draw_text(
+      img,
+      fmt::format("FPS {:.1f} | {} | armors {} | targets {}", fps, tracker.state(),
+                  armors.size(), targets.size()),
+      {10, 30}, {255, 255, 255}, 0.7, 2);
+    tools::draw_text(
+      img,
+      fmt::format("control {} | yaw {:.1f} | pitch {:.1f} | shoot {}",
+                  command.control, command.yaw * 57.3, command.pitch * 57.3, command.shoot),
+      {10, 60}, {255, 255, 255}, 0.7, 2);
+
+    cv::Mat display;
+    cv::resize(img, display, {}, 0.5, 0.5);
+    cv::imshow("Single Camera Auto Aim", display);
+    const int key = cv::waitKey(1);
+    if (key == 'q' || key == 27) break;
   }
 
+  cv::destroyWindow("Single Camera Auto Aim");
   rclcpp::shutdown();
   return 0;
 }

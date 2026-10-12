@@ -141,6 +141,7 @@
 const std::string keys =
   "{help h usage ? |                          | 输出命令行参数说明}"
   "{config-path c  | configs/calibration.yaml | yaml配置文件路径 }"
+  "{show-images    | true                     | 是否逐张显示角点 }"
   "{@input-folder  | assets/img_with_q        | 输入文件夹路径   }";
 
 // 生成棋盘格角点的3D坐标
@@ -161,7 +162,7 @@ std::vector<cv::Point3f> chessboard_corners_3d(const cv::Size & pattern_size, co
 void load(
   const std::string & input_folder, const std::string & config_path, cv::Size & img_size,
   std::vector<std::vector<cv::Point3f>> & obj_points,
-  std::vector<std::vector<cv::Point2f>> & img_points)
+  std::vector<std::vector<cv::Point2f>> & img_points, bool show_images)
 {
   // 读取yaml参数
   auto yaml = YAML::LoadFile(config_path);
@@ -224,21 +225,19 @@ void load(
       cv::cornerSubPix(gray, corners_2d, cv::Size(11, 11), cv::Size(-1, -1), criteria);
     }
 
-    // 显示识别结果
-    auto drawing = img.clone();
-    cv::drawChessboardCorners(drawing, pattern_size, corners_2d, success);
-    
-    // 在图像上显示状态信息
-    if (success) {
-      tools::draw_text(drawing, fmt::format("成功检测: {}个角点", corners_2d.size()), 
-                       {10, 30}, {0, 255, 0});
-    } else {
-      tools::draw_text(drawing, "检测失败", {10, 30}, {0, 0, 255});
+    if (show_images) {
+      auto drawing = img.clone();
+      cv::drawChessboardCorners(drawing, pattern_size, corners_2d, success);
+      if (success) {
+        tools::draw_text(drawing, fmt::format("成功检测: {}个角点", corners_2d.size()),
+                         {10, 30}, {0, 255, 0});
+      } else {
+        tools::draw_text(drawing, "检测失败", {10, 30}, {0, 0, 255});
+      }
+      cv::resize(drawing, drawing, {}, 0.5, 0.5);
+      cv::imshow("棋盘格检测 - 按任意键继续", drawing);
+      cv::waitKey(0);
     }
-    
-    cv::resize(drawing, drawing, {}, 0.5, 0.5);  // 缩小图片尺寸便于显示
-    cv::imshow("棋盘格检测 - 按任意键继续", drawing);
-    cv::waitKey(0);
 
     // 输出识别结果
     fmt::print("[{}] {} - 角点: {}\n", 
@@ -253,7 +252,7 @@ void load(
     fmt::print("    已采集 {} 组数据\n", obj_points.size());
   }
   
-  cv::destroyAllWindows();
+  if (show_images) cv::destroyAllWindows();
 }
 
 void print_yaml(const cv::Mat & camera_matrix, const cv::Mat & distort_coeffs, double error)
@@ -286,6 +285,7 @@ int main(int argc, char * argv[])
   }
   auto input_folder = cli.get<std::string>(0);
   auto config_path = cli.get<std::string>("config-path");
+  auto show_images = cli.get<bool>("show-images");
 
   fmt::print("=== 开始相机内参标定 ===\n");
   fmt::print("输入文件夹: {}\n", input_folder);
@@ -295,7 +295,7 @@ int main(int argc, char * argv[])
   cv::Size img_size;
   std::vector<std::vector<cv::Point3f>> obj_points;
   std::vector<std::vector<cv::Point2f>> img_points;
-  load(input_folder, config_path, img_size, obj_points, img_points);
+  load(input_folder, config_path, img_size, obj_points, img_points, show_images);
 
   if (obj_points.size() < 8) {
     fmt::print("❌ 有效数据不足 ({}组)，至少需要8组数据进行标定\n", obj_points.size());
